@@ -13,10 +13,22 @@ jobs:
         java-version: 1.8
     - name: Build with Maven
       run: mvn -B package --file pom.xml
-    - name: Upload artifact
-      uses: actions/upload-artifact@v1.0.0
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        # Artifact name
-        name: obfuscator.jar
-        # Directory containing files to upload
-        path: obfuscator-core/target/obfuscator-core-1.9.3-SNAPSHOT.jar
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: obfuscator-core/target/obfuscator-core-1.9.3-SNAPSHOT.jar
+        asset_name: obfuscator.jar
+        asset_content_type: application/java-archive
