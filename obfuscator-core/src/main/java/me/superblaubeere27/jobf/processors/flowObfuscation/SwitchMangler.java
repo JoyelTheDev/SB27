@@ -33,17 +33,21 @@ class SwitchMangler {
         for (AbstractInsnNode abstractInsnNode : node.instructions.toArray()) {
             if (abstractInsnNode instanceof TableSwitchInsnNode) {
                 TableSwitchInsnNode switchInsnNode = (TableSwitchInsnNode) abstractInsnNode;
-                obfuscateTableSwitch(node, switchInsnNode, resultSlot, tempSlot);
+                InsnList insnList = obfuscateTableSwitch(switchInsnNode, resultSlot, tempSlot);
+                node.instructions.insert(abstractInsnNode, insnList);
+                node.instructions.remove(abstractInsnNode);
             }
             if (abstractInsnNode instanceof LookupSwitchInsnNode) {
                 LookupSwitchInsnNode switchInsnNode = (LookupSwitchInsnNode) abstractInsnNode;
-                obfuscateLookupSwitch(node, switchInsnNode, resultSlot, tempSlot);
+                InsnList insnList = obfuscateLookupSwitch(switchInsnNode, resultSlot, tempSlot);
+                node.instructions.insert(abstractInsnNode, insnList);
+                node.instructions.remove(abstractInsnNode);
             }
         }
     }
     
-    private static void obfuscateTableSwitch(MethodNode node, TableSwitchInsnNode switchInsnNode, 
-                                             int resultSlot, int tempSlot) {
+    private static InsnList obfuscateTableSwitch(TableSwitchInsnNode switchInsnNode, 
+                                                 int resultSlot, int tempSlot) {
         InsnList insnList = new InsnList();
         
         // Store the original switch value
@@ -86,12 +90,11 @@ class SwitchMangler {
         
         insnList.add(new JumpInsnNode(Opcodes.GOTO, switchInsnNode.dflt));
         
-        node.instructions.insert(abstractInsnNode, insnList);
-        node.instructions.remove(abstractInsnNode);
+        return insnList;
     }
     
-    private static void obfuscateLookupSwitch(MethodNode node, LookupSwitchInsnNode switchInsnNode,
-                                              int resultSlot, int tempSlot) {
+    private static InsnList obfuscateLookupSwitch(LookupSwitchInsnNode switchInsnNode,
+                                                  int resultSlot, int tempSlot) {
         InsnList insnList = new InsnList();
         
         // Store the original switch value
@@ -117,8 +120,7 @@ class SwitchMangler {
         
         insnList.add(new JumpInsnNode(Opcodes.GOTO, switchInsnNode.dflt));
         
-        node.instructions.insert(abstractInsnNode, insnList);
-        node.instructions.remove(abstractInsnNode);
+        return insnList;
     }
     
     private static void obfuscateLookupScrambled(InsnList insnList, LookupSwitchInsnNode switchInsnNode,
