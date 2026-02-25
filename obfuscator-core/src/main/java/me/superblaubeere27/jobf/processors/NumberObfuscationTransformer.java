@@ -49,6 +49,7 @@ public class NumberObfuscationTransformer implements IClassTransformer {
 
     public NumberObfuscationTransformer(JObfImpl inst) {
         this.inst = inst;
+        INSTANCE = this;
     }
 
     @Override
