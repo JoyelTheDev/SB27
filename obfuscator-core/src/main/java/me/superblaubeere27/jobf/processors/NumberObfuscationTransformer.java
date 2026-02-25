@@ -29,6 +29,8 @@ import java.util.concurrent.ThreadLocalRandom;
 public class NumberObfuscationTransformer implements IClassTransformer {
     private static final String PROCESSOR_NAME = "NumberObfuscation";
     private static final ThreadLocalRandom RANDOM = ThreadLocalRandom.current();
+
+    private static NumberObfuscationTransformer INSTANCE;
     
     private JObfImpl inst;
     private EnabledValue enabled = new EnabledValue(PROCESSOR_NAME, DeprecationLevel.GOOD, true);
