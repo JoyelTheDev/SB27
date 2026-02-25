@@ -454,7 +454,7 @@ public class NumberObfuscationTransformer implements IClassTransformer {
             clinit.instructions.add(new InsnNode(Opcodes.RETURN));
         } else {
             clinit.instructions.insertBefore(clinit.instructions.getFirst(), 
-                new MethodInsnNode(Opsodes.INVOKESTATIC, node.name, initMethod.name, initMethod.desc, false));
+                new MethodInsnNode(Opcodes.INVOKESTATIC, node.name, initMethod.name, initMethod.desc, false));
         }
         
         // Replace numbers in methods with array access
