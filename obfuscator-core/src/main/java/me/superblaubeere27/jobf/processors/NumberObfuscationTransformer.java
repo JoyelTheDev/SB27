@@ -558,4 +558,17 @@ public class NumberObfuscationTransformer implements IClassTransformer {
     public ObfuscationTransformer getType() {
         return ObfuscationTransformer.NUMBER_OBFUSCATION;
     }
+    // Add these static methods
+   public static InsnList getInstructions(int value) {
+    return INSTANCE.generateObfuscatedNumber(null, null, value);
+   }
+
+   public static InsnList getInstructions(Integer value) {
+    return getInstructions(value.intValue());
+   }
+
+   public static InsnList obfuscateInsnList(InsnList list) {
+    // Simple implementation - you can enhance this if needed
+    return list;
+   }
 }
