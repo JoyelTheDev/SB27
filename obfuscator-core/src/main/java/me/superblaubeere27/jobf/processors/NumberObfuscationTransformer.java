@@ -1,10 +1,10 @@
 /*
  * Copyright (c) 2017-2019 superblaubeere27, Sam Sun, MarcoMC
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
@@ -23,552 +23,272 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 
 import java.lang.reflect.Modifier;
-import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 
 public class NumberObfuscationTransformer implements IClassTransformer {
     private static final String PROCESSOR_NAME = "NumberObfuscation";
-    private static final ThreadLocalRandom RANDOM = ThreadLocalRandom.current();
-
+    private static Random random = new Random();
     private static NumberObfuscationTransformer INSTANCE;
-    
     private JObfImpl inst;
     private EnabledValue enabled = new EnabledValue(PROCESSOR_NAME, DeprecationLevel.GOOD, true);
-    private BooleanValue extractToArray = new BooleanValue(PROCESSOR_NAME, "Extract to Array", "Calculates the Integers once and store them in an array", DeprecationLevel.GOOD, true);
-    private BooleanValue obfuscateZero = new BooleanValue(PROCESSOR_NAME, "Obfuscate Zero", "Enables special Obfuscation of the number 0", DeprecationLevel.GOOD, true);
-    private BooleanValue useBitwise = new BooleanValue(PROCESSOR_NAME, "Use Bitwise", "Uses complex bitwise operations", DeprecationLevel.GOOD, true);
-    private BooleanValue useMathOperations = new BooleanValue(PROCESSOR_NAME, "Use Math", "Uses mathematical operations", DeprecationLevel.GOOD, true);
-    private BooleanValue useStringOps = new BooleanValue(PROCESSOR_NAME, "Use String", "Uses string operations for numbers", DeprecationLevel.GOOD, true);
-    private BooleanValue useFloatCast = new BooleanValue(PROCESSOR_NAME, "Use Float Cast", "Uses float/double casting", DeprecationLevel.GOOD, true);
-    private BooleanValue useInvokeDynamic = new BooleanValue(PROCESSOR_NAME, "Use InvokeDynamic", "Uses invokedynamic for numbers", DeprecationLevel.GOOD, false);
-    private BooleanValue multiLayerObfuscation = new BooleanValue(PROCESSOR_NAME, "Multi-layer", "Applies multiple obfuscation layers", DeprecationLevel.GOOD, true);
-    private BooleanValue useRandomJumps = new BooleanValue(PROCESSOR_NAME, "Random Jumps", "Inserts random jump instructions", DeprecationLevel.GOOD, true);
-    private BooleanValue useExceptionFlow = new BooleanValue(PROCESSOR_NAME, "Exception Flow", "Uses exception handlers for flow obfuscation", DeprecationLevel.GOOD, false);
-    
-    private Map<String, Integer> fieldCounter = new HashMap<>();
+    private BooleanValue extractToArray = new BooleanValue(PROCESSOR_NAME, "Extract to Array", "Calculates the integers once and store them in an array", DeprecationLevel.GOOD, true);
+    private BooleanValue obfuscateZero = new BooleanValue(PROCESSOR_NAME, "Obfuscate Zero", "Enables special obfuscation of the number 0", DeprecationLevel.GOOD, true);
+    private BooleanValue shift = new BooleanValue(PROCESSOR_NAME, "Shift", "Uses \"<<\" to obfuscate numbers", DeprecationLevel.GOOD, false);
+    private BooleanValue and = new BooleanValue(PROCESSOR_NAME, "And", "Uses \"&\" to obfuscate numbers", DeprecationLevel.GOOD, false);
+    private BooleanValue multipleInstructions = new BooleanValue(PROCESSOR_NAME, "Multiple Instructions", "Repeats the obfuscation process", DeprecationLevel.GOOD, true);
 
     public NumberObfuscationTransformer(JObfImpl inst) {
         this.inst = inst;
         INSTANCE = this;
     }
 
+    private static InsnList getInstructionsMultipleTimes(int value, int iterations) {
+        InsnList list = new InsnList();
+        list.add(NodeUtils.generateIntPush(value));
+
+        for (int i = 0; i < (INSTANCE.multipleInstructions.getObject() ? iterations : 1); i++) {
+            list = obfuscateInsnList(list);
+        }
+        return list;
+    }
+
+    public static InsnList obfuscateInsnList(InsnList list) {
+        for (AbstractInsnNode abstractInsnNode : list.toArray()) {
+            if (NodeUtils.isIntegerNumber(abstractInsnNode)) {
+                int number = NodeUtils.getIntValue(abstractInsnNode);
+
+                if (number == Integer.MIN_VALUE) {
+                    continue;
+                }
+                list.insert(abstractInsnNode, getInstructions(number));
+                list.remove(abstractInsnNode);
+            }
+        }
+        return list;
+    }
+
+    public static InsnList getInstructions(int value) {
+        InsnList methodInstructions = new InsnList();
+
+        if (value == 0 && INSTANCE.obfuscateZero.getObject()) {
+            int randomInt = random.nextInt(100);
+            methodInstructions.add(getInstructions(randomInt));
+            methodInstructions.add(getInstructions(randomInt));
+            methodInstructions.add(new InsnNode(Opcodes.ICONST_M1));
+            methodInstructions.add(new InsnNode(Opcodes.IXOR));
+            methodInstructions.add(new InsnNode(Opcodes.IAND));
+
+            return methodInstructions;
+        }
+        int[] shiftOutput = splitToLShift(value);
+
+        if (shiftOutput[1] > 0 && INSTANCE.shift.getObject()) {
+            methodInstructions.add(getInstructions(shiftOutput[0]));
+            methodInstructions.add(getInstructions(shiftOutput[1]));
+            methodInstructions.add(new InsnNode(Opcodes.ISHL));
+            return methodInstructions;
+        }
+//        if (value == Integer.MIN_VALUE) {
+//            methodInstructions.add(NodeUtils.generateIntPush(Integer.MAX_VALUE));
+//            methodInstructions.add(new InsnNode(Opcodes.ICONST_M1));
+//            methodInstructions.add(new InsnNode(Opcodes.IXOR));
+//
+//            return methodInstructions;
+//        }
+//        if (value == Integer.MAX_VALUE) {
+//            methodInstructions.add(NodeUtils.generateIntPush(Integer.MIN_VALUE));
+//            methodInstructions.add(new InsnNode(Opcodes.ICONST_M1));
+//            methodInstructions.add(new InsnNode(Opcodes.IXOR));
+//
+//            return methodInstructions;
+//        }
+
+        int method;
+
+        boolean lenghtMode = true;
+        boolean xorMode = true;
+        boolean simpleMathMode = true;
+        if (lenghtMode && (Math.abs(value) < 4 || (!xorMode && !simpleMathMode)))
+            method = 0;
+        else if (xorMode && (Math.abs(value) < Byte.MAX_VALUE || (!lenghtMode && !simpleMathMode)))
+            method = 1;
+        else {
+            if (!INSTANCE.and.getObject() && Math.abs(value) > 0xFF) {
+                method = 3;
+            } else {
+                method = 2;
+            }
+
+        }
+
+        final boolean negative = value < 0;
+
+        if (negative)
+            value = -value;
+
+        switch (method) {
+            case 0:
+                /*
+                 * Generates a string.length() statement (e. 4 will be "kfjr".length())
+                 */
+                methodInstructions.add(new LdcInsnNode(NameUtils.generateSpaceString(value)));
+                methodInstructions.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "length", "()I", false));
+                break;
+            case 1:
+                /*
+                 * Generates a XOR statement 20 will be 29 ^ 9 <--- It's random that there a two 9s
+                 */
+                int A = value;
+                int B = random.nextInt(200);
+                A = A ^ B;
+                methodInstructions.add(NodeUtils.generateIntPush(A));
+                methodInstructions.add(NodeUtils.generateIntPush(B));
+                methodInstructions.add(new InsnNode(Opcodes.IXOR));
+                break;
+            case 2:
+                /*
+                 * Generates a simple calculation e. 5 + 3 - 2 + 3 = 9
+                 */
+                final int ADD_1 = random.nextInt(value);
+                final int ADD_2 = random.nextInt(value);
+                final int ADD_3 = random.nextInt(value);
+                final int SUB = (ADD_1 + ADD_2 + ADD_3) - value;
+
+                methodInstructions.add(NodeUtils.generateIntPush(ADD_1));
+                methodInstructions.add(NodeUtils.generateIntPush(ADD_2));
+                methodInstructions.add(new InsnNode(Opcodes.IADD));
+                methodInstructions.add(NodeUtils.generateIntPush(SUB));
+                methodInstructions.add(new InsnNode(Opcodes.ISUB));
+                methodInstructions.add(NodeUtils.generateIntPush(ADD_3));
+                methodInstructions.add(new InsnNode(Opcodes.IADD));
+                break;
+            case 3:
+                int[] and = splitToAnd(value);
+                methodInstructions.add(NodeUtils.generateIntPush(and[0]));
+                methodInstructions.add(NodeUtils.generateIntPush(and[1]));
+                methodInstructions.add(new InsnNode(Opcodes.IAND));
+                break;
+        }
+        if (negative)
+            methodInstructions.add(new InsnNode(Opcodes.INEG));
+
+        return methodInstructions;
+    }
+
+    private static int[] splitToAnd(int number) {
+        int number2 = random.nextInt(Short.MAX_VALUE) & ~number;
+
+        return new int[]{~number2, number2 | number};
+    }
+
+    private static int[] splitToLShift(int number) {
+        int shift = 0;
+
+        while ((number & ~0x7ffffffffffffffEL) == 0 && number != 0) {
+            number = number >> 1;
+            shift++;
+        }
+        return new int[]{number, shift};
+    }
+
     @Override
     public void process(ProcessorCallback callback, ClassNode node) {
         if (!enabled.getObject()) return;
 
-        Map<Integer, List<AbstractInsnNode>> numberLocations = new HashMap<>();
-        Map<Integer, Integer> numberFrequency = new HashMap<>();
-        
-        // First pass: collect all numbers and their frequencies
+        int i = 0;
+        String fieldName = NameUtils.generateFieldName(node.name);
+        List<Integer> integerList = new ArrayList<>();
         for (MethodNode method : node.methods) {
-            for (AbstractInsnNode insn : method.instructions.toArray()) {
-                if (NodeUtils.isIntegerNumber(insn)) {
-                    int number = NodeUtils.getIntValue(insn);
-                    if (number == Integer.MIN_VALUE) continue;
-                    
-                    numberLocations.computeIfAbsent(number, k -> new ArrayList<>()).add(insn);
-                    numberFrequency.merge(number, 1, Integer::sum);
+            for (AbstractInsnNode abstractInsnNode : method.instructions.toArray()) {
+                if (abstractInsnNode == null) {
+                    throw new RuntimeException("AbstractInsnNode is null. WTF?");
                 }
-            }
-        }
+                if (NodeUtils.isIntegerNumber(abstractInsnNode)) {
+                    int number = NodeUtils.getIntValue(abstractInsnNode);
 
-        // Process each method
-        for (MethodNode method : node.methods) {
-            processMethod(node, method, numberFrequency);
-        }
+                    if (number == Integer.MIN_VALUE) {
+                        continue;
+                    }
+//                    if (abstractInsnNode instanceof LdcInsnNode && ((LdcInsnNode) abstractInsnNode).cst instanceof Number && ((int) ((LdcInsnNode) abstractInsnNode).cst) == Integer.MIN_VALUE) {
+//                        System.out.println(((LdcInsnNode) abstractInsnNode).cst + "/" + number);
+//                    }
+                    if (!Modifier.isInterface(node.access)
+//                            && mode == 1
+                            && extractToArray.getObject()
+                    ) {
+                        int containedSlot = -1;
+                        int j = 0;
+                        for (Integer integer : integerList) {
+                            if (integer == number) containedSlot = j;
+                            j++;
+                        }
+                        if (containedSlot == -1) integerList.add(number);
+                        method.instructions.insertBefore(abstractInsnNode, new FieldInsnNode(Opcodes.GETSTATIC, node.name, fieldName, "[I"));
+                        method.instructions.insertBefore(abstractInsnNode, NodeUtils.generateIntPush(containedSlot == -1 ? i : containedSlot));
+                        method.instructions.insertBefore(abstractInsnNode, new InsnNode(Opcodes.IALOAD));
+                        method.instructions.remove(abstractInsnNode);
+                        if (containedSlot == -1) i++;
+                        method.maxStack += 2;
+                    } else {
+                        method.maxStack += 4;
 
-        // Handle array extraction for frequent numbers
-        if (extractToArray.getObject() && !numberFrequency.isEmpty()) {
-            extractNumbersToArray(node, numberFrequency);
-        }
-
-        inst.setWorkDone();
-    }
-
-    private void processMethod(ClassNode classNode, MethodNode method, Map<Integer, Integer> numberFrequency) {
-        InsnList instructions = method.instructions;
-        List<AbstractInsnNode> toRemove = new ArrayList<>();
-        List<AbstractInsnNode> toInsert = new ArrayList<>();
-
-        for (AbstractInsnNode insn : instructions.toArray()) {
-            if (NodeUtils.isIntegerNumber(insn)) {
-                int number = NodeUtils.getIntValue(insn);
-                if (number == Integer.MIN_VALUE) continue;
-
-                // Skip if number will be extracted to array (frequent numbers)
-                if (shouldExtractToArray(number, numberFrequency)) {
-                    continue;
-                }
-
-                // Generate obfuscated instructions
-                InsnList obfuscated = generateObfuscatedNumber(classNode, method, number);
-                
-                // Insert before the original instruction
-                instructions.insertBefore(insn, obfuscated);
-                toRemove.add(insn);
-                
-                // Update max stack
-                method.maxStack = Math.max(method.maxStack, estimateMaxStack(obfuscated));
-            }
-        }
-
-        // Remove original instructions
-        toRemove.forEach(instructions::remove);
-    }
-
-    private boolean shouldExtractToArray(int number, Map<Integer, Integer> numberFrequency) {
-        return extractToArray.getObject() && 
-               numberFrequency.getOrDefault(number, 0) > 2 && 
-               !Modifier.isInterface(number); // This condition seems wrong - fix if needed
-    }
-
-    private InsnList generateObfuscatedNumber(ClassNode classNode, MethodNode method, int value) {
-        InsnList result = new InsnList();
-        
-        // Choose random obfuscation technique
-        int layers = multiLayerObfuscation.getObject() ? RANDOM.nextInt(3) + 1 : 1;
-        
-        for (int i = 0; i < layers; i++) {
-            int technique = RANDOM.nextInt(8);
-            
-            switch (technique) {
-                case 0:
-                    result.add(obfuscateWithBitwise(value));
-                    break;
-                case 1:
-                    result.add(obfuscateWithMath(value));
-                    break;
-                case 2:
-                    result.add(obfuscateWithString(value));
-                    break;
-                case 3:
-                    result.add(obfuscateWithFloatCast(value));
-                    break;
-                case 4:
-                    result.add(obfuscateWithComplexBitwise(value));
-                    break;
-                case 5:
-                    result.add(obfuscateWithPolynomial(value));
-                    break;
-                case 6:
-                    result.add(obfuscateWithMethodCall(classNode, method, value));
-                    break;
-                case 7:
-                    result.add(obfuscateWithFlowControl(classNode, method, value));
-                    break;
-            }
-        }
-
-        // Add random noise if enabled
-        if (useRandomJumps.getObject() && RANDOM.nextInt(3) == 0) {
-            result = addRandomJumps(result);
-        }
-
-        return result;
-    }
-
-    private InsnList obfuscateWithBitwise(int value) {
-        InsnList list = new InsnList();
-        
-        int a = RANDOM.nextInt(Integer.MAX_VALUE);
-        int b = value ^ a;
-        
-        list.add(NodeUtils.generateIntPush(a));
-        list.add(NodeUtils.generateIntPush(b));
-        list.add(new InsnNode(Opcodes.IXOR));
-        
-        // Add more bitwise operations
-        if (RANDOM.nextBoolean()) {
-            int shift = RANDOM.nextInt(16) + 1;
-            list.add(NodeUtils.generateIntPush(shift));
-            list.add(new InsnNode(Opcodes.ISHL));
-            
-            list.add(NodeUtils.generateIntPush(shift));
-            list.add(new InsnNode(Opcodes.ISHR));
-        }
-        
-        return list;
-    }
-
-    private InsnList obfuscateWithComplexBitwise(int value) {
-        InsnList list = new InsnList();
-        
-        // Use multiple bitwise operations: (~a & b) | (a & ~b) = a ^ b
-        int a = RANDOM.nextInt(Integer.MAX_VALUE);
-        int b = value ^ a;
-        
-        // ~a & b
-        list.add(NodeUtils.generateIntPush(a));
-        list.add(new InsnNode(Opcodes.ICONST_M1));
-        list.add(new InsnNode(Opcodes.IXOR)); // ~a
-        list.add(NodeUtils.generateIntPush(b));
-        list.add(new InsnNode(Opcodes.IAND));
-        
-        // a & ~b
-        list.add(NodeUtils.generateIntPush(a));
-        list.add(NodeUtils.generateIntPush(b));
-        list.add(new InsnNode(Opcodes.ICONST_M1));
-        list.add(new InsnNode(Opcodes.IXOR)); // ~b
-        list.add(new InsnNode(Opcodes.IAND));
-        
-        // OR them together
-        list.add(new InsnNode(Opcodes.IOR));
-        
-        return list;
-    }
-
-    private InsnList obfuscateWithMath(int value) {
-        InsnList list = new InsnList();
-        
-        // Use mathematical identities
-        if (value == 0) {
-            // 0 = sin(pi) = cos(pi/2) = ln(1) etc.
-            list.add(new LdcInsnNode(Math.PI));
-            list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/lang/Math", "sin", "(D)D", false));
-            list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/lang/Double", "intValue", "()I", false));
-        } else {
-            // value = (value * 2) / 2
-            int multiplier = RANDOM.nextInt(100) + 1;
-            list.add(NodeUtils.generateIntPush(value * multiplier));
-            list.add(NodeUtils.generateIntPush(multiplier));
-            list.add(new InsnNode(Opcodes.IDIV));
-            
-            // Add some addition/subtraction
-            if (RANDOM.nextBoolean()) {
-                int offset = RANDOM.nextInt(1000);
-                list.add(NodeUtils.generateIntPush(offset));
-                list.add(new InsnNode(Opcodes.ISUB));
-                list.add(NodeUtils.generateIntPush(offset));
-                list.add(new InsnNode(Opcodes.IADD));
-            }
-        }
-        
-        return list;
-    }
-
-    private InsnList obfuscateWithPolynomial(int value) {
-        InsnList list = new InsnList();
-        
-        // Use polynomial: ax² + bx + c
-        int x = RANDOM.nextInt(100) + 1;
-        int a = RANDOM.nextInt(10) + 1;
-        int b = RANDOM.nextInt(100);
-        int c = value - (a * x * x + b * x);
-        
-        // Calculate ax²
-        list.add(NodeUtils.generateIntPush(a));
-        list.add(NodeUtils.generateIntPush(x));
-        list.add(new InsnNode(Opcodes.IMUL));
-        list.add(NodeUtils.generateIntPush(x));
-        list.add(new InsnNode(Opcodes.IMUL));
-        
-        // Calculate bx
-        list.add(NodeUtils.generateIntPush(b));
-        list.add(NodeUtils.generateIntPush(x));
-        list.add(new InsnNode(Opcodes.IMUL));
-        list.add(new InsnNode(Opcodes.IADD));
-        
-        // Add c
-        list.add(NodeUtils.generateIntPush(c));
-        list.add(new InsnNode(Opcodes.IADD));
-        
-        return list;
-    }
-
-    private InsnList obfuscateWithString(int value) {
-        InsnList list = new InsnList();
-        
-        // Use String operations
-        if (value >= 0 && value < 1000) {
-            // Convert to string and back with manipulation
-            String numStr = String.valueOf(value);
-            StringBuilder sb = new StringBuilder();
-            
-            // Add random characters
-            for (int i = 0; i < numStr.length(); i++) {
-                if (RANDOM.nextBoolean()) {
-                    sb.append((char) (RANDOM.nextInt(26) + 'a'));
-                }
-                sb.append(numStr.charAt(i));
-            }
-            
-            list.add(new LdcInsnNode(sb.toString()));
-            list.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "replaceAll", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", false));
-            list.add(new LdcInsnNode("[^0-9]"));
-            list.add(new LdcInsnNode(""));
-            list.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "replaceAll", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", false));
-            list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/lang/Integer", "parseInt", "(Ljava/lang/String;)I", false));
-        } else {
-            // Fallback for large numbers
-            list = obfuscateWithBitwise(value);
-        }
-        
-        return list;
-    }
-
-    private InsnList obfuscateWithFloatCast(int value) {
-        InsnList list = new InsnList();
-        
-        // Convert through float/double
-        float f = value;
-        int bits = Float.floatToIntBits(f);
-        
-        list.add(NodeUtils.generateIntPush(bits));
-        list.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/lang/Float", "intBitsToFloat", "(I)F", false));
-        
-        if (RANDOM.nextBoolean()) {
-            list.add(new InsnNode(Opcodes.F2D));
-            list.add(new LdcInsnNode(0.5));
-            list.add(new InsnNode(Opcodes.DADD));
-            list.add(new InsnNode(Opcodes.D2I));
-        } else {
-            list.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/Float", "intValue", "()I", false));
-        }
-        
-        return list;
-    }
-
-    private InsnList obfuscateWithMethodCall(ClassNode classNode, MethodNode currentMethod, int value) {
-        InsnList list = new InsnList();
-        
-        // Create a helper method if needed
-        String helperName = "num$" + Integer.toHexString(RANDOM.nextInt());
-        MethodNode helper = new MethodNode(
-            Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC,
-            helperName,
-            "()I",
-            null,
-            null
-        );
-        
-        InsnList helperCode = new InsnList();
-        helperCode.add(generateObfuscatedNumber(classNode, currentMethod, value));
-        helperCode.add(new InsnNode(Opcodes.IRETURN));
-        helper.instructions = helperCode;
-        helper.maxStack = 5;
-        
-        classNode.methods.add(helper);
-        
-        // Call the helper method
-        list.add(new MethodInsnNode(
-            Opcodes.INVOKESTATIC,
-            classNode.name,
-            helperName,
-            "()I",
-            false
-        ));
-        
-        return list;
-    }
-
-    private InsnList obfuscateWithFlowControl(ClassNode classNode, MethodNode method, int value) {
-        InsnList list = new InsnList();
-        
-        if (useExceptionFlow.getObject()) {
-            // Use try-catch for flow obfuscation
-            LabelNode tryStart = new LabelNode();
-            LabelNode tryEnd = new LabelNode();
-            LabelNode catchStart = new LabelNode();
-            LabelNode catchEnd = new LabelNode();
-            LabelNode afterCatch = new LabelNode();
-            
-            list.add(tryStart);
-            list.add(NodeUtils.generateIntPush(value));
-            list.add(new JumpInsnNode(Opcodes.GOTO, afterCatch));
-            list.add(tryEnd);
-            
-            // Exception handler
-            list.add(catchStart);
-            list.add(new InsnNode(Opcodes.POP)); // Remove exception
-            list.add(NodeUtils.generateIntPush(value));
-            list.add(catchEnd);
-            
-            // Add try-catch block to method
-            method.tryCatchBlocks.add(new TryCatchBlockNode(tryStart, tryEnd, catchStart, null));
-            
-            list.add(afterCatch);
-        } else {
-            // Use conditional jumps
-            LabelNode label = new LabelNode();
-            list.add(NodeUtils.generateIntPush(value));
-            list.add(new JumpInsnNode(Opcodes.IFLT, label));
-            list.add(new InsnNode(Opcodes.NOP));
-            list.add(label);
-        }
-        
-        return list;
-    }
-
-    private InsnList addRandomJumps(InsnList original) {
-        InsnList result = new InsnList();
-        LabelNode label = new LabelNode();
-        
-        // Add random jump around the code
-        result.add(new JumpInsnNode(Opcodes.GOTO, label));
-        result.add(original);
-        result.add(label);
-        
-        return result;
-    }
-
-    private void extractNumbersToArray(ClassNode node, Map<Integer, Integer> numberFrequency) {
-        // Sort numbers by frequency
-        List<Map.Entry<Integer, Integer>> entries = new ArrayList<>(numberFrequency.entrySet());
-        entries.sort((a, b) -> b.getValue().compareTo(a.getValue()));
-        
-        // Take top 10 most frequent numbers
-        int limit = Math.min(10, entries.size());
-        if (limit == 0) return;
-        
-        String fieldName = generateUniqueFieldName(node.name);
-        List<Integer> numbers = new ArrayList<>();
-        
-        for (int i = 0; i < limit; i++) {
-            numbers.add(entries.get(i).getKey());
-        }
-        
-        // Create static array field
-        FieldNode arrayField = new FieldNode(
-            (node.access & Opcodes.ACC_INTERFACE) != 0 ? Opcodes.ACC_PUBLIC : Opcodes.ACC_PRIVATE,
-            fieldName,
-            "[I",
-            null,
-            null
-        );
-        arrayField.access |= Opcodes.ACC_STATIC;
-        if (node.version <= Opcodes.V1_8) {
-            arrayField.access |= Opcodes.ACC_FINAL;
-        }
-        node.fields.add(arrayField);
-        
-        // Create initialization method
-        MethodNode initMethod = createArrayInitMethod(node, fieldName, numbers);
-        node.methods.add(initMethod);
-        
-        // Add call to init method in <clinit>
-        MethodNode clinit = NodeUtils.getMethod(node, "<clinit>");
-        if (clinit == null) {
-            clinit = new MethodNode(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
-            node.methods.add(clinit);
-        }
-        
-        if (clinit.instructions.getFirst() == null) {
-            clinit.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, node.name, initMethod.name, initMethod.desc, false));
-            clinit.instructions.add(new InsnNode(Opcodes.RETURN));
-        } else {
-            clinit.instructions.insertBefore(clinit.instructions.getFirst(), 
-                new MethodInsnNode(Opcodes.INVOKESTATIC, node.name, initMethod.name, initMethod.desc, false));
-        }
-        
-        // Replace numbers in methods with array access
-        replaceNumbersWithArrayAccess(node, fieldName, numbers);
-    }
-
-    private MethodNode createArrayInitMethod(ClassNode node, String fieldName, List<Integer> numbers) {
-        MethodNode method = new MethodNode(
-            Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC,
-            "init$" + Integer.toHexString(RANDOM.nextInt()),
-            "()V",
-            null,
-            null
-        );
-        
-        InsnList instructions = new InsnList();
-        
-        // Create array
-        instructions.add(NodeUtils.generateIntPush(numbers.size()));
-        instructions.add(new IntInsnNode(Opcodes.NEWARRAY, Opcodes.T_INT));
-        instructions.add(new FieldInsnNode(Opcodes.PUTSTATIC, node.name, fieldName, "[I"));
-        
-        // Initialize each element with obfuscated values
-        for (int i = 0; i < numbers.size(); i++) {
-            instructions.add(new FieldInsnNode(Opcodes.GETSTATIC, node.name, fieldName, "[I"));
-            instructions.add(NodeUtils.generateIntPush(i));
-            instructions.add(generateObfuscatedNumber(node, method, numbers.get(i)));
-            instructions.add(new InsnNode(Opcodes.IASTORE));
-        }
-        
-        instructions.add(new InsnNode(Opcodes.RETURN));
-        method.instructions = instructions;
-        method.maxStack = 6;
-        
-        return method;
-    }
-
-    private void replaceNumbersWithArrayAccess(ClassNode node, String fieldName, List<Integer> numbers) {
-        for (MethodNode method : node.methods) {
-            if (method.name.startsWith("<") || method.name.startsWith("init$")) continue;
-            
-            InsnList instructions = method.instructions;
-            List<AbstractInsnNode> toRemove = new ArrayList<>();
-            
-            for (AbstractInsnNode insn : instructions.toArray()) {
-                if (NodeUtils.isIntegerNumber(insn)) {
-                    int value = NodeUtils.getIntValue(insn);
-                    int index = numbers.indexOf(value);
-                    
-                    if (index != -1) {
-                        // Replace with array access
-                        instructions.insertBefore(insn, new FieldInsnNode(Opcodes.GETSTATIC, node.name, fieldName, "[I"));
-                        instructions.insertBefore(insn, NodeUtils.generateIntPush(index));
-                        instructions.insertBefore(insn, new InsnNode(Opcodes.IALOAD));
-                        toRemove.add(insn);
-                        
-                        method.maxStack = Math.max(method.maxStack, 2);
+                        method.instructions.insertBefore(abstractInsnNode, getInstructionsMultipleTimes(number, random.nextInt(2) + 1));
+                        method.instructions.remove(abstractInsnNode);
                     }
                 }
             }
-            
-            toRemove.forEach(instructions::remove);
         }
-    }
-
-    private String generateUniqueFieldName(String className) {
-        String base = "nums$" + Integer.toHexString(RANDOM.nextInt());
-        int count = fieldCounter.getOrDefault(className, 0);
-        fieldCounter.put(className, count + 1);
-        return base + (count > 0 ? "$" + count : "");
-    }
-
-    private int estimateMaxStack(InsnList instructions) {
-        int stack = 0;
-        int maxStack = 0;
-        
-        for (AbstractInsnNode insn : instructions.toArray()) {
-            int opcode = insn.getOpcode();
-            if (opcode >= Opcodes.ISTORE && opcode <= Opcodes.SASTORE) {
-                stack -= 2; // Store operations consume 2 values
-            } else if (opcode >= Opcodes.ILOAD && opcode <= Opcodes.SALOAD) {
-                stack++; // Load operations push 1 value
-            } else if (opcode >= Opcodes.IADD && opcode <= Opcodes.LXOR) {
-                stack--; // Binary operations consume 2, push 1
-            } else if (opcode == Opcodes.INVOKESTATIC) {
-                // For simplicity, assume method consumes arguments and returns 1 value
-                // Real implementation would need to parse method descriptors
-                stack = stack - 0 + 1; // Adjust based on actual method
+        if (i != 0) {
+            node.fields.add(new FieldNode(((node.access & Opcodes.ACC_INTERFACE) != 0 ? Opcodes.ACC_PUBLIC : Opcodes.ACC_PRIVATE) | (node.version > Opcodes.V1_8 ? 0 : Opcodes.ACC_FINAL) | Opcodes.ACC_STATIC, fieldName, "[I", null, null));
+            MethodNode clInit = NodeUtils.getMethod(node, "<clinit>");
+            if (clInit == null) {
+                clInit = new MethodNode(Opcodes.ACC_STATIC, "<clinit>", "()V", null, new String[0]);
+                node.methods.add(clInit);
             }
-            
-            maxStack = Math.max(maxStack, stack);
+            if (clInit.instructions == null)
+                clInit.instructions = new InsnList();
+
+            InsnList toAdd = new InsnList();
+
+//            if (clInit.instructions.getFirst() == null)
+//                clInit.instructions.insert(NodeUtils.generateIntPush(i));
+//            else
+            toAdd.add(NodeUtils.generateIntPush(i));
+
+            toAdd.add(new IntInsnNode(Opcodes.NEWARRAY, Opcodes.T_INT));
+//            toAdd.insert(new IntInsnNode(Opcodes.NEWARRAY, 0));
+            toAdd.add(new FieldInsnNode(Opcodes.PUTSTATIC, node.name, fieldName, "[I"));
+
+            for (int j = 0; j < i; j++) {
+                toAdd.add(new FieldInsnNode(Opcodes.GETSTATIC, node.name, fieldName, "[I"));
+                toAdd.add(NodeUtils.generateIntPush(j));
+                toAdd.add(getInstructionsMultipleTimes(integerList.get(j), random.nextInt(2) + 1));
+                toAdd.add(new InsnNode(Opcodes.IASTORE));
+            }
+
+            MethodNode generateIntegers = new MethodNode(((node.access & Opcodes.ACC_INTERFACE) != 0 ? Opcodes.ACC_PUBLIC : Opcodes.ACC_PRIVATE) | Opcodes.ACC_STATIC, NameUtils.generateMethodName(node, "()V"), "()V", null, new String[0]);
+            generateIntegers.instructions = toAdd;
+            generateIntegers.instructions.add(new InsnNode(Opcodes.RETURN));
+            generateIntegers.maxStack = 6;
+            node.methods.add(generateIntegers);
+
+            if (clInit.instructions == null || clInit.instructions.getFirst() == null) {
+                clInit.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, node.name, generateIntegers.name, generateIntegers.desc, false));
+                clInit.instructions.add(new InsnNode(Opcodes.RETURN));
+            } else {
+                clInit.instructions.insertBefore(clInit.instructions.getFirst(), new MethodInsnNode(Opcodes.INVOKESTATIC, node.name, generateIntegers.name, generateIntegers.desc, false));
+            }
+//            clInit.maxStack = Math.max(clInit.maxStack, 6);
         }
-        
-        return maxStack + 5; // Add safety margin
+        inst.setWorkDone();
     }
 
     @Override
     public ObfuscationTransformer getType() {
-        return ObfuscationTransformer.NUMBER_OBFUSCATION;
+        return ObfuscationTransformer.INLINING;
     }
-    // Add these static methods
-   public static InsnList getInstructions(int value) {
-    return INSTANCE.generateObfuscatedNumber(null, null, value);
-   }
 
-   public static InsnList getInstructions(Integer value) {
-    return getInstructions(value.intValue());
-   }
 
-   public static InsnList obfuscateInsnList(InsnList list) {
-    // Simple implementation - you can enhance this if needed
-    return list;
-   }
 }
