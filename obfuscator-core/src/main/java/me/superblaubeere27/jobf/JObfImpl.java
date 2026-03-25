@@ -43,7 +43,6 @@ import java.util.zip.ZipOutputStream;
 import com.google.common.io.ByteStreams;
 import lombok.extern.slf4j.Slf4j;
 import me.superblaubeere27.jobf.processors.CrasherTransformer;
-import me.superblaubeere27.jobf.processors.HWIDProtection;
 import me.superblaubeere27.jobf.processors.HideMembers;
 import me.superblaubeere27.jobf.processors.InlineTransformer;
 import me.superblaubeere27.jobf.processors.InvokeDynamic;
@@ -295,7 +294,6 @@ public class JObfImpl {
     private void addProcessors() {
         processors.add(new StaticInitializionTransformer(this));
 
-        processors.add(new HWIDProtection(this));
         processors.add(new Optimizer());
         processors.add(new InlineTransformer(this));
         processors.add(new InvokeDynamic());
