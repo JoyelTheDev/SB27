@@ -22,7 +22,7 @@
     <dependencies>
         <dependency>
             <groupId>me.superblaubeere27</groupId>
-            <artifactId>obfuscator</artifactId>
+            <artifactId>sb27obf</artifactId>
             <version>1.7</version>
         </dependency>
     </dependencies>
