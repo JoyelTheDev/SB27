@@ -15,7 +15,7 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>me.superblaubeere27</groupId>
-        <artifactId>obfuscator</artifactId>
+        <artifactId>sb27obf</artifactId>
         <version>1.9.3-SNAPSHOT</version>
     </parent>
 
