@@ -34,7 +34,7 @@ jobs:
         echo "📦 target directory contents:"
         ls -la obfuscator-core/target/
         
-        JAR_FILE=$(ls obfuscator-core/target/obfuscator-core-*.jar \
+        JAR_FILE=$(ls obfuscator-core/target/sb27obfuscator-*.jar \
           | grep -v original \
           | grep -v sources \
           | grep -v javadoc \
