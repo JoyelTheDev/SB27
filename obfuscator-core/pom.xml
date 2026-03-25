@@ -19,7 +19,7 @@
         <version>1.9.3-SNAPSHOT</version>
     </parent>
 
-    <artifactId>obfuscator-core</artifactId>
+    <artifactId>sb27obfuscator</artifactId>
 
     <repositories>
         <repository>
