@@ -37,7 +37,7 @@ public class NameUtils {
     private static boolean usingCustomDictionary = false;
     private static List<String> classNames = new ArrayList<>();
     private static List<String> names = new ArrayList<>();
-    private static String chars = "Il";
+    private static String chars = "Jj";
 
     @SuppressWarnings("SameParameterValue")
     private static int randInt(int min, int max) {
@@ -207,7 +207,7 @@ public class NameUtils {
 
         names.clear();
         names = new ArrayList<>();
-        chars = "Il";
+        chars = "Jj";
     }
 
 }
